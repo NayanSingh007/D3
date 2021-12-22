@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Tree Map</title>
+		<script type="text/javascript" src="d3.js"></script>
+		<style type="text/css">
+			svg{
+				font-family: sans-serif;
+				font-size: 1px;
+			}
+			#tooltip {
+				position: absolute;
+				width: max-content;
+				height: auto;
+				padding: 10px;
+				background-color: white;
+				box-shadow: rgba(0, 0, 0, 0.02) 0px 1px 3px 0px, rgba(27, 31, 35, 0.15) 0px 0px 0px 1px;
+				pointer-events: none;
+			}
+			#tooltip.hidden{
+				display: none;
+			}
+			#tooltip p{
+				margin: 0;
+				font-family: sans-serif;
+				font-size: 15px;
+				line-height: 20px;
+			}
+			#value{
+				text-align: center;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="chart"></div>
+		<div id="tooltip">
+			<p id="value"></p>
+		</div>
+		<script type="text/javascript">
+
+			var dataset,root;
+
+			var width = 1000;
+			var height = 1000;
+			var chartW = 900;
+			var chartH = 700;
+			var chartPad = 100;
+
+			var svg = d3.select("div.chart")
+						.append("svg")
+						.attr("width", width)
+						.attr("height", height)
+						.append("g")
+						.attr("transform","translate("+chartPad+","+chartPad+")");
+
+			function sumBySize(d) {
+			  return d.value;
+			}
+
+			var color = {
+				"Wii": "#4c92c3",
+				"GB":'#ffc993',
+				"PS2":'#de5253',
+				"SNES":'#d1c0dd',
+				"GBA":'#e992ce',
+				"2600":'#d2d2d2',
+				"DS":'#bed2ed',
+				"PS3":'#56b356',
+				"3DS":'#ffadab',
+				"PS":'#a3786f',
+				"XB":'#f9c5db',
+				"PSP":'#c9ca4e',
+				"X360":'#ff993e',
+				"NES":'#ade5a1',
+				"PS4":'#a985ca',
+				"N64":'#d0b0a9',
+				"PC":'#999999',
+				"XOne":'#e2e2a4'
+
+			}
+
+			d3.json("video-game-sales-data.json").then(function(data){
+
+				dataset = data;
+
+				root = d3.hierarchy(dataset).sum(function(d){ return d.value});
+
+				var treemap = d3.treemap()
+								.size([chartW, chartH])
+								.padding(1);
+
+				treemap(root);
+
+				var cell = svg.selectAll("g")
+							  .data(root.leaves())
+							  .enter()
+							  .append("g")
+							  .attr("transform",(d)=>"translate("+d.x0 + "," +d.y0+")")
+							  .attr("clipPathId",(d)=> d.data.name);
+
+				cell.append("rect")
+					.attr("name",(d)=> d.data.name)
+					.attr("category",(d)=> d.parent.data.name)
+					.attr("value",(d)=> d.data.value)
+					.attr("x0",(d)=> (d.x0))
+					.attr("y0",(d)=> (d.y0))
+					.attr("width",(d)=> d.x1-d.x0)
+					.attr("height",(d)=> d.y1-d.y0)
+					.attr("fill",(d)=> color[d.parent.data.name])
+					.on("mouseover", function(d) {
+						
+						var x = parseFloat(d3.select(this).attr("x0"));// - chartPad/2;
+						var y = parseFloat(d3.select(this).attr("y0"))+chartPad*3/4;// / 2 + chartH / 2;
+					
+						console.log("x = " + x + " y = " + y);
+						
+						var tip = d3.select("#tooltip")
+									.style("left", x + "px")
+									.style("top", y + "px");
+
+						var i1 = "Name: " + d3.select(this).attr("name");
+						var i2 = "Category: " + d3.select(this).attr("category");
+						var i3 = "Value: " + d3.select(this).attr("value");
+
+						tip.select("#value")
+							.html(i1 + "</br>" + i2 + "</br>" + i3);
+						
+						d3.select("#tooltip").classed("hidden", false);
+					})
+					.on("mouseout", function() {
+						
+						d3.select("#tooltip").classed("hidden", true);
+					});;
+
+				cell.append("clipPath")
+					.attr("id",(d)=> d.data.name)
+					.append("rect")
+					.attr("width",(d)=> d.x1-d.x0)
+					.attr("height",(d)=> d.y1-d.y0);
+
+				cell.selectAll("text")
+					.data((d)=> d.data.name.split(/(?=[A-Z][^A-Z])/g))
+					.enter()
+					.append("text")
+					.attr("clip-path",function(d,i){
+						var t;
+						t=d3.select(this.parentNode).attr("clipPathId")
+						return "url(#" + t + ")";
+					})
+					.attr("font-size","10px")
+					.attr("x",4)
+					.attr("y",(d,i)=> 13+10*i)
+					.text((d)=> d);
+
+    
+			})
+
+		</script>
+	</body>
+</html>

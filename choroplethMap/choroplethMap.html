@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Choropleth Map</title>
+		<script type="text/javascript" src="d3.js"></script>
+		<script type="text/javascript" src="topojson.js"></script>
+		<style type="text/css">
+			.states{
+				stroke: white;
+				stroke-width: 1;
+				fill: rgb(0,200,0,0.05);
+				pointer-events: none;
+			}
+			.counties:hover{
+				fill:red;
+			}
+			#tooltip {
+				position: absolute;
+				width: max-content;
+				height: auto;
+				padding: 10px;
+				background-color: white;
+				box-shadow: rgba(0, 0, 0, 0.02) 0px 1px 3px 0px, rgba(27, 31, 35, 0.15) 0px 0px 0px 1px;
+				pointer-events: none;
+			}
+			#tooltip.hidden{
+				display: none;
+			}
+			#tooltip p{
+				margin: 0;
+				font-family: sans-serif;
+				font-size: 15px;
+				line-height: 20px;
+			}
+			#value{
+				text-align: center;
+			}
+			.headTitle{
+				font-family: sans-serif;
+				font-size: 35px;
+				font-weight: bold;
+			}
+			.headTitle2{
+				font-family: sans-serif;
+			}
+			.headTitle3{
+				font-family: sans-serif;
+				font-size: 15px;
+			}	
+		</style>
+	</head>
+	<body>
+		<div class = "chart"></div>
+		<div id="tooltip">
+			<p id="value"></p>
+		</div>
+		<script type="text/javascript">
+
+			var dataset,mapDataset,state,county;
+
+			var w = 1100;
+			var h = 700;
+
+			var chartW = 1000;
+			var chartH = 600;
+			var chartPad = 50;
+
+			var svg = d3.select("div.chart")
+						.append("svg")
+						.attr("width", w)
+						.attr("height", h);
+
+			var path = d3.geoPath();
+
+			function color(d){
+				//console.log(d);
+				if (d >= 57){
+ 						return "#006d2c";
+ 				}else if(d >= 48 && d < 57 ){
+ 						return "#238b45";						
+ 				}else if(d >= 39 && d < 48){
+ 						return "#41ab5d";
+ 				}else if(d >= 30 && d < 39){
+ 						return "#74c476";
+ 				}else if(d >= 21 && d < 30){
+ 						return "#a1d99b";
+ 				}else if(d >= 12 && d < 21){
+ 						return "#c7e9c0";
+ 				}else if(d < 12){
+ 						return "#e5f5e0";
+ 				}
+			};
+
+			d3.json("for_user_education.json").then(function(data){
+
+				dataset = data;
+
+
+				d3.json("counties.json").then(function(mapData){
+
+					mapDataset = mapData;
+
+					state = topojson.feature(mapDataset,mapDataset.objects.states).features;
+					county = topojson.feature(mapDataset,mapDataset.objects.counties).features;
+
+					var centroids = county.map(function (feature){
+									    return path.centroid(feature);
+									  });
+
+					var cnT = svg.append("g")
+								.attr("transform","translate("+chartPad+","+(chartPad+40)+")");
+
+					cnT.selectAll(".counties")
+						.data(county)
+						.enter()
+						.append("path")
+						.attr("class","counties")
+						.attr("countyID",(d)=> d.id)
+						.attr('data-education', function (d) {
+						      var result = dataset.filter(function (obj) {
+						        return obj.fips === d.id;
+						      });
+						      if (result[0]) {
+						        return result[0].bachelorsOrHigher;
+						      }
+						      return 0;
+						})
+						.attr('state', function (d) {
+						      var result = dataset.filter(function (obj) {
+						        return obj.fips === d.id;
+						      });
+						      if (result[0]) {
+						        return result[0].state;
+						      }
+						      return 0;
+						})
+						.attr('area-name', function (d) {
+						      var result = dataset.filter(function (obj) {
+						        return obj.fips === d.id;
+						      });
+						      if (result[0]) {
+						        return result[0].area_name;
+						      }
+						      return 0;
+						})
+						.attr("d", path)
+						.attr("fill",function(d){
+							var t = d3.select(this).attr("data-education");
+							return color(t);
+						})
+						.attr("x", (d,i)=> centroids[i][0] + chartPad+40)
+						.attr("y", (d,i)=> centroids[i][1] + chartPad+40)
+						.on("mouseover", function(d) {
+						
+						var x = parseFloat(d3.select(this).attr("x")) -	chartPad/2;
+						var y = parseFloat(d3.select(this).attr("y")) - chartPad;// / 2 + chartH / 2;
+					
+						//
+						
+						var tip = d3.select("#tooltip")
+									.style("left", x + "px")
+									.style("top", y + "px");
+
+						var i1 = d3.select(this).attr("area-name")+", ";
+						var i2 = d3.select(this).attr("state")+": ";
+						var i3 = d3.select(this).attr("data-education")+"%";
+
+						tip.select("#value")
+							.html(i1 + i2 + i3);
+						
+						d3.select("#tooltip").classed("hidden", false);
+						})
+						.on("mouseout", function() {
+							
+							d3.select("#tooltip").classed("hidden", true);
+						});	
+
+	
+
+					var s8 = svg.append("g")
+								.attr("transform","translate("+chartPad+","+(chartPad+40)+")");
+				
+					s8.selectAll(".states")
+						.data(state)
+						.enter()
+						.append("path")
+						.attr("class","states")
+						.attr("d", path);
+
+
+					var head = svg.append("g")
+							.attr("transform", "translate("+(w*0.20)+ "," +(chartPad)+")");
+
+					head.append("text")
+							.attr("transform", "translate(0,0)")
+							.attr("class","headTitle")
+							.text("United States Educational Attainment");
+					head.append("text")
+							.attr("transform", "translate("+0+","+20+")")
+							.attr("dy", "1.5em")
+							.attr("class","headTitle2")
+							.text("Percentage of adults age 25 and older with a bachelor's degree or higher (2010-2014)");
+
+					head.append("text")
+					    .attr("class", "headTitle3")
+					    .attr("x",-250)
+					    .attr("y",-480)
+					    .attr("dy", ".75em")
+					    .attr("transform", "rotate(-90)")
+					    .text("Months");
+
+					head.append("text")
+					    .attr("class", "headTitle3")
+					    .attr("transform","translate(580,650)")
+					    .html("Source: " +  "<a href='https://www.ers.usda.gov/data-products/county-level-data-sets/download-data.aspx' color='red'>USDA Economic Research Service</a>");
+
+					var legend = svg.append("g")
+					 				.attr("transform","translate(630,120)");
+
+					var legendDomain = [3, 12, 21, 30, 39, 48, 57, 66];
+
+					var legendData = [3, 12, 21, 30, 39, 48, 57];
+
+
+					legendScale = d3.scaleOrdinal()
+										.domain(legendDomain)
+										.range([0,30,60,90,120,150,180,210]);
+
+					var colorArr = {
+						3:"#e5f5e0",
+						12:"#c7e9c0",
+						21:"#a1d99b",
+						30:"#74c476",
+						39:"#41ab5d",
+						48:"#238b45",
+						57:"#006d2c"
+					}
+
+					legend.selectAll("rect")
+							.data(legendData)
+							.enter()
+							.append("rect")
+							.attr("x",(d,i)=>legendScale(d))
+							.attr("y",12)
+							.attr("height",8)
+							.attr("width",30)
+							.attr("fill",(d)=>{
+								return colorArr[d];
+							});
+
+
+					legendAxis = d3.axisBottom(legendScale)
+									.tickValues(legendDomain)
+									.tickFormat(function(d){
+										return d + "%";
+									});
+
+					legend.append("g")
+						.attr("class", "legendAxis")
+						.attr("transform", "translate(0,20)")
+						.call(legendAxis)
+						.select("path")
+						.remove();
+
+				})
+
+			})
+		</script>
+	</body>
+</html>
